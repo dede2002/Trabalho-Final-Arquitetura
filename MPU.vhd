@@ -1,44 +1,40 @@
 library IEEE;
-use IEEE.NUMERIC_STD.ALL;
 use IEEE.STD_LOGIC_1164.ALL;
-use IEEE.STD_LOGIC_ARITH.ALL;
-use IEEE.STD_LOGIC_UNSIGNED.ALL;
+use IEEE.NUMERIC_STD.ALL; -- Biblioteca recomendada para conversões e operações numéricas
 
 entity MPU is
     Port (
-        ce_n, we_n, oe_n : in std_logic;        -- Sinais de controle
-        intr            : out std_logic;        -- Sinal de interrupção
-        address         : in std_logic_vector(15 downto 0);  -- Endereço de 16 bits
-        data            : inout std_logic_vector(15 downto 0) -- Dados de 16 bits
+        ce_n, we_n, oe_n : in std_logic;
+        intr            : out std_logic;
+        address         : in std_logic_vector(15 downto 0);
+        data            : inout std_logic_vector(15 downto 0)
     );
 end MPU;
 
 architecture Behavioral of MPU is
     -- Definição das matrizes A, B, C
-    type matrix is array (0 to 3, 0 to 3) of std_logic_vector(15 downto 0);  -- Exemplo de matrizes 4x4
+    type matrix is array (0 to 3, 0 to 3) of std_logic_vector(15 downto 0);  -- Matrizes de 4x4
     signal A, B, C : matrix := (others => (others => (others => '0')));
-    signal cmd_reg : std_logic_vector(15 downto 0) := (others => '0'); -- Registro de comando
+    signal cmd_reg : std_logic_vector(15 downto 0) := (others => '0');
 
-    -- Variáveis auxiliares para armazenar o endereço atual
-    signal addr_row, addr_col : integer range 0 to 3; -- Endereços de linha e coluna
-    signal done : std_logic := '0';  -- Sinal de conclusão
-    signal command_executed : boolean := false; -- Para indicar que o comando foi executado
+    signal addr_row, addr_col : integer range 0 to 3;
+    signal done : std_logic := '0';
 begin
     process (ce_n, we_n, oe_n, address)
     begin
         if ce_n = '0' then  -- Chip habilitado
-            -- Decodificar o endereço em linhas e colunas
-            addr_row <= to_integer(unsigned(address(3 downto 2))); -- Exemplo de decodificação simples
+            -- Decodificação do endereço em linhas e colunas
+            addr_row <= to_integer(unsigned(address(3 downto 2))); -- Converte std_logic_vector para unsigned
             addr_col <= to_integer(unsigned(address(1 downto 0)));
 
             if we_n = '0' then -- Escrever dado
                 if address = "0000000000001111" then  -- Endereço de comandos
-                    cmd_reg <= data; -- Escreve o comando
+                    cmd_reg <= data;
                 elsif address(15 downto 4) = "0001" then  -- Matriz A
                     A(addr_row, addr_col) <= data; 
                 elsif address(15 downto 4) = "0010" then  -- Matriz B
                     B(addr_row, addr_col) <= data; 
-                elsif address(15 downto 4) = "0011" then  -- Matriz C (se necessário escrever)
+                elsif address(15 downto 4) = "0011" then  -- Matriz C
                     C(addr_row, addr_col) <= data; 
                 end if;
             elsif oe_n = '0' then -- Ler dado
@@ -52,50 +48,20 @@ begin
             end if;
         end if;
 
-        -- Execução dos comandos da MPU
+        -- Execução dos comandos
         if cmd_reg = "0001" then  -- Comando ADD
             for i in 0 to 3 loop
                 for j in 0 to 3 loop
-                    C(i, j) <= A(i, j) + B(i, j); -- Soma das matrizes
+                    -- Converte std_logic_vector para unsigned, faz a soma, e converte de volta para std_logic_vector
+                    C(i, j) <= std_logic_vector(unsigned(A(i, j)) + unsigned(B(i, j)));
                 end loop;
             end loop;
             done <= '1'; -- Operação concluída
         elsif cmd_reg = "0010" then  -- Comando SUB
             for i in 0 to 3 loop
                 for j in 0 to 3 loop
-                    C(i, j) <= A(i, j) - B(i, j); -- Subtração das matrizes
-                end loop;
-            end loop;
-            done <= '1'; -- Operação concluída
-        elsif cmd_reg = "0011" then  -- Comando MUL
-            for i in 0 to 3 loop
-                for j in 0 to 3 loop
-                    C(i, j) <= A(i, j) * B(i, j); -- Multiplicação das matrizes
-                end loop;
-            end loop;
-            done <= '1'; -- Operação concluída
-        elsif cmd_reg = "0100" then  -- Comando MAC
-            for i in 0 to 3 loop
-                for j in 0 to 3 loop
-                    C(i, j) <= C(i, j) + A(i, j) * B(i, j); -- Produto acumulado
-                end loop;
-            end loop;
-            done <= '1'; -- Operação concluída
-        elsif cmd_reg = "0101" then  -- Comando FILL
-            for i in 0 to 3 loop
-                for j in 0 to 3 loop
-                    C(i, j) <= data; -- Preenche a matriz com o valor dado
-                end loop;
-            end loop;
-            done <= '1'; -- Operação concluída
-        elsif cmd_reg = "0110" then  -- Comando IDENTITY
-            for i in 0 to 3 loop
-                for j in 0 to 3 loop
-                    if i = j then
-                        C(i, j) <= "0000000000000001"; -- Matriz identidade
-                    else
-                        C(i, j) <= "0000000000000000"; -- Zeros fora da diagonal
-                    end if;
+                    -- Converte std_logic_vector para unsigned, faz a subtração, e converte de volta
+                    C(i, j) <= std_logic_vector(unsigned(A(i, j)) - unsigned(B(i, j)));
                 end loop;
             end loop;
             done <= '1'; -- Operação concluída
